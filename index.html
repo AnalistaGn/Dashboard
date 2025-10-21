@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Ejecutivo Gn</title>
+    <title>Dashboard Ejecutivo GN</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
@@ -347,7 +347,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>🔮 Dashboard Ejecutivo v5.7: Multi-Medida y Rango Dinámico</h1>
+            <h1>🔮 Dashboard Ejecutivo GN </h1>
             <p class="subtitle">Análisis avanzado, filtrado por rango de fecha y comparación de múltiples series.</p>
         </header>
 
@@ -445,7 +445,6 @@
                         
                         if (isCSV) {
                             // Si es CSV, data es el texto plano (leído con readAsText)
-                            // XLSX.utils.csv_to_sheet convierte el texto en una hoja de cálculo.
                             workbook = {
                                 SheetNames: ["Datos"],
                                 // El parámetro "Datos" es el contenido del archivo CSV como string
@@ -477,19 +476,17 @@
                         
                         resolve(sheetsData);
                     } catch (err) {
-                        // En caso de error, agregar un mensaje útil para CSV si es relevante
-                        const errorMsg = isCSV && err.message.includes('Delimiter') 
-                            ? `Error al procesar CSV. Esto puede deberse a un delimitador (separador) no reconocido (ej. usa ';' en lugar de ','). Error: ${err.message}` 
-                            : `Error al procesar el archivo: ${err.message}`;
-                        reject(new Error(errorMsg));
+                        // FIX: Manejo de errores simplificado y directo para evitar bloqueos
+                        const fileType = isCSV ? "CSV (posible delimitador o codificación incorrecta, pruebe con ',' o ';')" : "Excel/XLSX";
+                        reject(new Error(`Error al procesar el archivo (${fileType}). Detalle: ${err.message}`));
                     }
                 };
                 
                 reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
                 
-                // === CAMBIO CLAVE: LECTURA CONDICIONAL ===
+                // === LECTURA CONDICIONAL REVISADA ===
                 if (isCSV) {
-                     // Leer como texto para manejar la codificación UTF-8
+                     // Leer como texto para manejar la codificación UTF-8 para CSV
                      reader.readAsText(file, 'UTF-8'); 
                 } else {
                      // Leer como ArrayBuffer para el manejo binario de Excel
@@ -528,7 +525,8 @@
                 }
 
             } catch (err) {
-                showError("Error al procesar el archivo: " + err.message);
+                // El error ya viene formateado desde readFileAsync
+                showError(err.message); 
             } finally {
                 loading.classList.add("hidden");
             }
