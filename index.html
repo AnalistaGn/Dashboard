@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Ejecutivo v5.6: Multi-Medida y Rango de Fecha</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.1/dist/chartjs-adapter-moment.min.js"></script>
+    <style>
+        /* Definición de variables de color para fácil mantenimiento */
+        :root {
+            --color-dark-blue: #002338; /* Azul Oscuro (Fondo Principal) */
+            --color-green: #77c25c;     /* Verde (Éxito/Real) */
+            --color-lime: #B8DDB5;      /* Verde Lima (Relleno Suave) */
+            --color-sky-blue: #A9D6FF;  /* Azul Cielo (Predicción/Forecast) */
+            --color-background-card: #003657; /* Fondo para tarjetas y secciones (Contraste) */
+            --color-text-light: #e2e8f0;
+            --color-text-muted: #a9d6ffc2; /* Azul cielo sutil para texto */
+            --color-border-card: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Estilos base */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            /* Fondo azul oscuro con gradiente */
+            background: linear-gradient(135deg, var(--color-dark-blue) 0%, #003a5c 100%);
+            color: var(--color-text-light);
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Efecto de fondo sutil con los colores de marca */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: radial-gradient(circle at 20% 50%, var(--color-green) 0.08, transparent 50%),
+                        radial-gradient(circle at 80% 80%, var(--color-sky-blue) 0.08, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container { position: relative; z-index: 1; max-width: 1600px; margin: 0 auto; }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 3.5em; 
+            font-weight: 900; 
+            /* Gradiente de título llamativo con los colores de marca */
+            background: linear-gradient(135deg, var(--color-green), var(--color-sky-blue)); 
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+            letter-spacing: -2px;
+        }
+
+        .subtitle {
+            color: var(--color-text-muted);
+            font-size: 1.2em;
+            font-weight: 400;
+        }
+
+        /* Carga de archivo */
+        .upload-section {
+            background: var(--color-background-card);
+            backdrop-filter: blur(20px);
+            border: 2px dashed var(--color-sky-blue); 
+            border-radius: 20px;
+            padding: 50px;
+            text-align: center;
+            margin-bottom: 40px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .upload-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(135deg, var(--color-green), var(--color-sky-blue)); 
+            color: var(--color-dark-blue);
+            padding: 18px 45px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 1.1em;
+            transition: all 0.3s;
+            box-shadow: 0 10px 30px rgba(119, 194, 92, 0.3);
+        }
+        
+        .hidden { display: none !important; }
+
+        /* Estilos para las pestañas de hojas de cálculo */
+        .tabs-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--color-border-card);
+        }
+
+        .tab-button {
+            padding: 10px 20px;
+            border-radius: 8px 8px 0 0;
+            background: var(--color-background-card);
+            color: var(--color-text-muted);
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab-button:hover {
+            background: #004a75;
+            color: var(--color-text-light);
+        }
+
+        .tab-button.active {
+            background: var(--color-dark-blue); 
+            color: var(--color-green); 
+            font-weight: 700;
+            border-bottom: 3px solid var(--color-green);
+            box-shadow: 0 -5px 15px rgba(119, 194, 92, 0.2);
+        }
+        
+        /* Controles Interactivos (Filtros de Decisión) */
+        .controls-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: var(--color-background-card);
+            border-radius: 16px;
+            border: 1px solid var(--color-border-card); 
+            flex-wrap: wrap;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            min-width: 200px; /* Reducido para que quepan más controles */
+            flex-grow: 1;
+        }
+
+        .control-group label {
+            font-size: 0.9em;
+            color: var(--color-green);
+            margin-bottom: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .control-group select,
+        .control-group input[type="date"] { /* Estilo unificado para select y date */
+            padding: 14px;
+            border-radius: 8px;
+            border: 1px solid #004a75;
+            background: var(--color-dark-blue);
+            color: var(--color-text-light);
+            font-size: 1em;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            appearance: none;
+            /* Ícono de flecha personalizado (solo para select) */
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%20fill%3D%22none%22%20stroke%3D%22%23A9D6FF%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            background-size: 16px;
+        }
+        
+        /* Ajuste para input date */
+        .control-group input[type="date"] {
+             background-image: none; /* Quitar la flecha del select en el date input */
+        }
+        
+        /* Ajuste para selección múltiple */
+        .control-group select[multiple] {
+            height: 120px; /* Altura para ver múltiples opciones */
+            padding: 10px;
+            background-image: none;
+        }
+
+
+        /* Contenedores de KPIs */
+        .kpis-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .kpi-card {
+            background: var(--color-background-card);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            transition: all 0.4s;
+            border: 1px solid var(--color-border-card);
+            position: relative; 
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); 
+        }
+        
+        .kpi-value {
+            font-size: 2.5em; 
+            font-weight: 900;
+            /* Gradiente de color en valor */
+            background: linear-gradient(135deg, var(--color-green), var(--color-sky-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .kpi-label {
+            color: var(--color-text-muted);
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .trend-predict { 
+            color: var(--color-sky-blue); 
+            font-size: 0.8em; 
+            margin-top: 5px;
+            font-weight: 700;
+        } 
+        
+        .error-metric {
+            color: #f59e0b; /* Amarillo para advertencia */
+            font-size: 0.8em; 
+            margin-top: 5px;
+            font-weight: 700;
+        }
+
+        .anomaly-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #f87171; 
+            color: white;
+            padding: 5px 10px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            font-weight: 700;
+        }
+
+        /* Contenedor de gráficos */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .chart-container {
+            background: var(--color-background-card); 
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 28px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); 
+            border: 1px solid var(--color-border-card); 
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .chart-title {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: var(--color-text-light);
+        }
+
+        .chart-badge {
+            background: linear-gradient(90deg, var(--color-green), var(--color-sky-blue));
+            color: var(--color-dark-blue);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.75em;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        /* Estilos de Tabla */
+        .table-container {
+            background: var(--color-background-card);
+            border-radius: 20px;
+            padding: 28px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--color-border-card); 
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 0.9em;
+        }
+
+        table thead th {
+            background-color: var(--color-dark-blue);
+            color: var(--color-green);
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 2px solid #004a75;
+            font-weight: 700;
+            position: sticky;
+            top: 0;
+        }
+
+        table tbody tr:nth-child(even) {
+            background-color: rgba(0, 54, 87, 0.5); /* Color de fondo de tarjeta con opacidad */
+        }
+
+        table tbody tr:hover {
+            background-color: rgba(169, 214, 255, 0.1); /* Azul cielo con opacidad */
+        }
+
+        table tbody td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #004a75;
+            color: var(--color-text-light);
+        }
+
+        .table-title {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: var(--color-text-light);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔮 Dashboard Ejecutivo v5.6: Multi-Medida y Rango Dinámico</h1>
+            <p class="subtitle">Análisis avanzado, filtrado por rango de fecha y comparación de múltiples series.</p>
+        </header>
+
+        <div class="upload-section">
+            <label class="upload-label" for="fileInput">
+                <span>📁</span>
+                <span>Seleccionar Archivo Excel o CSV para Análisis</span>
+            </label>
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+            <div id="fileName" class="file-name"></div>
+            <div id="loading" class="loading hidden">⚡ Analizando datos inteligentemente, detectando patrones y generando predicciones...</div>
+        </div>
+
+        <div id="errorContainer"></div>
+
+        <div id="content" class="hidden">
+            
+            <div id="sheetTabsContainer" class="tabs-container hidden">
+                </div>
+
+            <div id="controlsContainer" class="controls-container">
+                </div>
+
+            <div id="kpisPrediction" class="kpis-container"></div>
+            <div id="kpisMetrics" class="kpis-container"></div> 
+            
+            <div id="kpisContainer" class="kpis-container"></div>
+
+            <div id="chartsContainer" class="charts-grid"></div>
+
+            <div class="table-container">
+                <div class="table-header">
+                    <div class="table-title">📋 Vista de Datos (Primeros 100 Registros)</div>
+                    <div class="table-info" id="tableInfo"></div>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table id="tableContainer"></table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Variables globales y DOM
+        const fileInput = document.getElementById("fileInput");
+        const fileName = document.getElementById("fileName");
+        const loading = document.getElementById("loading");
+        const errorContainer = document.getElementById("errorContainer");
+        const content = document.getElementById("content");
+        const controlsContainer = document.getElementById("controlsContainer");
+        const kpisContainer = document.getElementById("kpisContainer");
+        const kpisPrediction = document.getElementById("kpisPrediction");
+        const kpisMetrics = document.getElementById("kpisMetrics"); 
+        const chartsContainer = document.getElementById("chartsContainer");
+        const tableContainer = document.getElementById("tableContainer");
+        const tableInfo = document.getElementById("tableInfo");
+        const sheetTabsContainer = document.getElementById("sheetTabsContainer"); 
+
+        let chartInstances = [];
+        let currentAnalysis = null; 
+        let allSheetsData = {}; 
+        let currentSheetName = null; 
+
+        // Configuración de Chart.js y Localización
+        Chart.defaults.color = "#A9D6FF"; // Azul Cielo para texto en gráficos
+        Chart.defaults.font.family = "'Inter', 'Segoe UI', sans-serif";
+        const LOCALE = 'es-ES'; 
+
+        // PALETA DE COLORES PERSONALIZADA
+        const COLOR_GREEN = '#77c25c';
+        const COLOR_SKY_BLUE = '#A9D6FF';
+        const COLOR_LIME = '#B8DDB5';
+        const COLOR_DARK_BLUE = '#002338';
+        const PRIMARY_COLORS = [COLOR_GREEN, COLOR_SKY_BLUE, '#B8DDB5', '#f59e0b', '#ec4899', '#06b6d4', '#84cc16'];
+
+
+        // =================================================================
+        // LÓGICA DE ARCHIVOS, INTERPRETACIÓN Y FORMATO
+        // =================================================================
+
+        function readFileAsync(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = e.target.result;
+                        let workbook;
+                        
+                        if (file.name.endsWith(".csv")) {
+                            const text = new TextDecoder("utf-8").decode(data);
+                            // Para CSV, tratamos el archivo entero como una sola hoja llamada "Datos"
+                            workbook = {
+                                SheetNames: ["Datos"],
+                                Sheets: { "Datos": XLSX.utils.csv_to_sheet(text) }
+                            };
+                        } else {
+                            // Leer el archivo Excel, incluyendo todas las hojas
+                            workbook = XLSX.read(data, { type: "array", cellDates: true, dateNF: "yyyy-mm-dd", raw: false });
+                        }
+                        
+                        const sheetsData = {};
+                        workbook.SheetNames.forEach(sheetName => {
+                            const worksheet = workbook.Sheets[sheetName];
+                            
+                            // Verificar que la hoja tenga un rango de datos definido
+                            if (worksheet && worksheet['!ref']) { 
+                                // Leer la hoja como un array de objetos (JSON)
+                                const dataRows = XLSX.utils.sheet_to_json(worksheet, { raw: false, dateNF: "yyyy-mm-dd" });
+                                
+                                if (dataRows.length > 0) {
+                                    sheetsData[sheetName] = dataRows;
+                                }
+                            }
+                        });
+
+                        if (Object.keys(sheetsData).length === 0) {
+                             reject(new Error("El archivo no contiene datos válidos en ninguna hoja."));
+                        }
+                        
+                        resolve(sheetsData);
+                    } catch (err) {
+                        reject(err);
+                    }
+                };
+                reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        
+        fileInput.addEventListener("change", async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            fileName.innerHTML = `<span style="font-size: 1.5em;">✓</span> ${file.name}`;
+            errorContainer.innerHTML = "";
+            loading.classList.remove("hidden");
+            content.classList.add("hidden");
+
+            try {
+                // Leer todas las hojas: {sheetName: [data]}
+                const sheetsData = await readFileAsync(file); 
+                
+                allSheetsData = sheetsData;
+                const sheetNames = Object.keys(sheetsData);
+                
+                if (sheetNames.length > 0) {
+                    // Seleccionar la primera hoja por defecto
+                    currentSheetName = sheetNames[0]; 
+                    
+                    // Renderizar las pestañas de selección
+                    renderSheetTabs(sheetNames, currentSheetName);
+                    
+                    // Analizar y mostrar el dashboard para la hoja inicial
+                    currentAnalysis = analyzeData(allSheetsData[currentSheetName]); 
+                    generateSmartDashboard(currentAnalysis);
+                } else {
+                    showError("El archivo no contiene hojas con datos válidos.");
+                }
+
+            } catch (err) {
+                showError("Error al procesar el archivo: " + err.message);
+            } finally {
+                loading.classList.add("hidden");
+            }
+        });
+
+        // Heurística de columnas
+        function interpretColumnHeuristic(colName, sampleData) {
+            const lowerName = colName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const numericSample = sampleData.map(v => parseFloat(v)).filter(v => !isNaN(v));
+            const isNumeric = numericSample.length / sampleData.length > 0.8;
+
+            if (lowerName.includes('fecha') || lowerName.includes('date') || lowerName.includes('dia') || lowerName.includes('tiempo')) {
+                if (sampleData.some(d => moment(d, moment.ISO_8601, true).isValid() || typeof d === 'number')) {
+                    return { type: 'DATE', format: 'DD/MM/YYYY', priority: 1 };
+                }
+            }
+            if (isNumeric) {
+                if (lowerName.includes('venta') || lowerName.includes('ingreso') || lowerName.includes('costo') || lowerName.includes('precio') || lowerName.includes('valor') || lowerName.includes('monto')) {
+                    return { type: 'CURRENCY', format: 'Currency', priority: 2 };
+                }
+                if (lowerName.includes('porcentaje') || lowerName.includes('pct') || lowerName.includes('ratio')) {
+                    return { type: 'PERCENTAGE', format: 'Percentage', priority: 2 };
+                }
+                return { type: 'MEASURE', format: 'Decimal', priority: 3 }; 
+            }
+            const uniqueValues = new Set(sampleData.map(d => (d || '').toString().trim()));
+            if (uniqueValues.size < Math.min(30, sampleData.length * 0.5) && uniqueValues.size > 1) { 
+                return { type: 'CATEGORICAL', format: 'Text', priority: 4 };
+            }
+            return { type: 'TEXT', format: 'Text', priority: 6 };
+        }
+
+        // Conversión de fechas de Excel
+        function convertExcelDate(excelValue) {
+            if (typeof excelValue === 'number' && excelValue > 1) {
+                const date = new Date(Math.round((excelValue - (excelValue > 60 ? 1 : 0)) * 86400 * 1000) + new Date(1899, 11, 30).getTime());
+                return moment(date).toISOString();
+            }
+            const m = moment(excelValue, moment.ISO_8601, true);
+            if (m.isValid()) {
+                return m.toISOString();
+            }
+            return null;
+        }
+
+        // Formato de valores 
+        function formatValue(value, formatType) {
+            if (value === null || value === undefined || value === "") return "";
+            const num = parseFloat(value);
+            if (isNaN(num) && formatType !== 'DD/MM/YYYY') return value.toString();
+
+            if (formatType === 'Currency') {
+                return num.toLocaleString(LOCALE, { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+            }
+            if (formatType === 'Percentage') {
+                const decimalValue = num > 1 ? num / 100 : num;
+                return decimalValue.toLocaleString(LOCALE, { style: 'percent', maximumFractionDigits: 1 });
+            }
+            if (formatType === 'Integer' || formatType === 'ID') {
+                return Math.round(num).toLocaleString(LOCALE);
+            }
+            if (formatType === 'Decimal' || formatType === 'MEASURE') {
+                return num.toLocaleString(LOCALE, { maximumFractionDigits: 2 });
+            }
+            if (formatType === 'DD/MM/YYYY' && moment(value, moment.ISO_8601, true).isValid()) {
+                return moment(value).format('DD/MM/YYYY');
+            }
+            // Formatos de métricas de error
+            if (formatType === 'MAPE') {
+                 return num.toLocaleString(LOCALE, { style: 'percent', maximumFractionDigits: 2 });
+            }
+             if (formatType === 'RMSE') {
+                 return num.toLocaleString(LOCALE, { maximumFractionDigits: 2 });
+            }
+            return value.toString();
+        }
+
+        function analyzeData(data) {
+            const cols = Object.keys(data[0] || {});
+            
+            const cleanData = data.map(row => {
+                const newRow = { ...row };
+                cols.forEach(col => {
+                    const isoDate = convertExcelDate(row[col]);
+                    if (isoDate) { newRow[col] = isoDate; }
+                });
+                return newRow;
+            });
+
+            const interpretationMap = {};
+            const sample = cleanData.slice(0, 100);
+            
+            cols.forEach(col => {
+                const sampleValues = sample.map(r => r[col]).filter(v => v !== null && v !== undefined);
+                interpretationMap[col] = interpretColumnHeuristic(col, sampleValues);
+            });
+
+            const dateCols = cols.filter(c => interpretationMap[c].type === 'DATE').sort((a, b) => interpretationMap[a].priority - interpretationMap[b].priority);
+            const numCols = cols.filter(c => interpretationMap[c].type === 'CURRENCY' || interpretationMap[c].type === 'PERCENTAGE' || interpretationMap[c].type === 'MEASURE').sort((a, b) => interpretationMap[a].priority - interpretationMap[b].priority);
+            const categoryCols = cols.filter(c => interpretationMap[c].type === 'CATEGORICAL').sort((a, b) => interpretationMap[a].priority - interpretationMap[b].priority);
+            
+            const statistics = calculateStatistics(cleanData, numCols);
+
+            return { data: cleanData, cols, numCols, categoryCols, dateCols, interpretationMap, statistics, rowCount: cleanData.length, colCount: cols.length };
+        }
+        
+        function calculateStatistics(data, numCols) {
+             const stats = {};
+            numCols.forEach(col => {
+                const vals = data.map(r => parseFloat(r[col])).filter(v => !isNaN(v));
+                if (vals.length > 0) {
+                    const sum = vals.reduce((a, b) => a + b, 0);
+                    const avg = sum / vals.length;
+                    const max = Math.max(...vals);
+                    const min = Math.min(...vals);
+                    const variance = vals.reduce((sum, v) => sum + (v - avg) ** 2, 0) / vals.length;
+                    const stdDev = Math.sqrt(variance);
+                    stats[col] = { sum, avg, max, min, count: vals.length, stdDev };
+                }
+            });
+            return stats;
+        }
+
+        // =================================================================
+        // LÓGICA DE FILTRADO Y RE-ANÁLISIS
+        // =================================================================
+
+        function getSelectedMeasures() {
+            const select = document.getElementById('measureSelect');
+            if (!select) return [];
+            // Devuelve un array de los valores seleccionados
+            return Array.from(select.selectedOptions).map(option => option.value);
+        }
+
+        function getFilteredData(data, dateCol, startDate, endDate) {
+            if (!dateCol) return data;
+
+            const start = moment(startDate, 'YYYY-MM-DD');
+            const end = moment(endDate, 'YYYY-MM-DD');
+
+            // Si las fechas no son válidas (e.g., al inicio sin datos), devolvemos el dataset completo
+            if (!start.isValid() && !end.isValid()) return data; 
+
+            return data.filter(r => {
+                const date = moment(r[dateCol], moment.ISO_8601, true);
+                if (!date.isValid()) return false;
+                
+                const isAfterStart = start.isValid() ? date.isSameOrAfter(start, 'day') : true;
+                const isBeforeEnd = end.isValid() ? date.isSameOrBefore(end, 'day') : true;
+
+                return isAfterStart && isBeforeEnd;
+            });
+        }
+        
+        function getFilteredAnalysis() {
+            const dateCol = document.getElementById('dateColSelect')?.value;
+            const startDate = document.getElementById('startDateSelect')?.value;
+            const endDate = document.getElementById('endDateSelect')?.value;
+            
+            const originalData = allSheetsData[currentSheetName];
+            const filteredData = getFilteredData(originalData, dateCol, startDate, endDate);
+            
+            // Re-analizar el subconjunto filtrado para obtener nuevas estadísticas
+            const filteredAnalysis = { ...currentAnalysis, data: filteredData, rowCount: filteredData.length };
+            filteredAnalysis.statistics = calculateStatistics(filteredData, filteredAnalysis.numCols);
+            
+            return filteredAnalysis;
+        }
+
+
+        // =================================================================
+        // LÓGICA DE PREDICCIÓN AVANZADA (Holt-Winters)
+        // =================================================================
+
+        function detectSeasonality(series) {
+            if (series.length < 10) return 1;
+            const diffs = [];
+            for(let i = 1; i < series.length; i++) {
+                diffs.push(moment(series[i].date).diff(moment(series[i-1].date), 'days'));
+            }
+            const frequencies = {};
+            diffs.forEach(d => frequencies[d] = (frequencies[d] || 0) + 1);
+            const mostCommonDiff = Object.entries(frequencies).sort((a, b) => b[1] - a[1])[0]?.[0];
+            if (mostCommonDiff <= 1) return 7; 
+            if (mostCommonDiff <= 7) return 4; 
+            if (mostCommonDiff <= 31) return 12; 
+            return 12; 
+        }
+
+        function holtWintersForecast(data, periods, seasonality) {
+            if (data.length < seasonality * 2 + 1) return null;
+            const alpha = 0.2; const beta = 0.1; const gamma = 0.1; 
+            let S = data[0]; let B = (data[seasonality] - data[0]) / seasonality; let I = []; 
+            for (let i = 0; i < seasonality; i++) {
+                let sum = 0; let count = 0;
+                for (let j = i; j < data.length; j += seasonality) { sum += data[j]; count++; }
+                I.push((sum / count) - S); 
+            }
+            let L = [S]; let T = [B]; let P = []; 
+            for (let i = 1; i < data.length; i++) {
+                const i_seasonal = i % seasonality;
+                const S_prev = L[i - 1]; const B_prev = T[i - 1]; const I_prev = I[(i - seasonality + seasonality) % seasonality]; // Ajuste de índice
+                let S_new;
+                if (i >= seasonality) { S_new = alpha * (data[i] - I_prev) + (1 - alpha) * (S_prev + B_prev);
+                } else { S_new = alpha * data[i] + (1 - alpha) * (S_prev + B_prev); }
+                L.push(S_new);
+                const B_new = beta * (S_new - S_prev) + (1 - beta) * B_prev;
+                T.push(B_new);
+                let I_new = I[i_seasonal];
+                if (i >= seasonality) { I_new = gamma * (data[i] - S_new) + (1 - gamma) * I_prev; }
+                I[i_seasonal] = I_new;
+                let prediction = S_prev + B_prev + I[i_seasonal];
+                P.push(Math.max(0, prediction));
+            }
+            let futureForecast = [];
+            for (let i = 1; i <= periods; i++) {
+                const f_period = data.length + i;
+                const i_seasonal = f_period % seasonality;
+                const forecast = L[L.length - 1] + T[T.length - 1] * i + I[i_seasonal % seasonality]; // Usar módulo para índice de I
+                futureForecast.push(Math.max(0, forecast)); 
+            }
+            return { forecast: futureForecast, inSamplePredictions: P };
+        }
+
+        // Métricas de Error de Predicción (CLAVE para la decisión)
+        function calculatePredictionMetrics(realData, predictions) {
+            const N = Math.min(realData.length - predictions.length, predictions.length);
+            if (N <= 0) return { RMSE: 0, MAPE: 0 };
+            const actual = realData.slice(realData.length - N);
+            const predicted = predictions.slice(predictions.length - N);
+            let squaredErrorSum = 0;
+            let absolutePercentageErrorSum = 0;
+            for (let i = 0; i < N; i++) {
+                const error = actual[i] - predicted[i];
+                squaredErrorSum += error * error;
+                if (actual[i] !== 0) { absolutePercentageErrorSum += Math.abs(error / actual[i]); }
+            }
+            const RMSE = Math.sqrt(squaredErrorSum / N);
+            const MAPE = (absolutePercentageErrorSum / N);
+            return { RMSE, MAPE };
+        }
+        
+        function detectAnomalies(dataValues, stdDev) {
+            if (!stdDev || dataValues.length < 5) return [];
+            const avg = dataValues.reduce((a, b) => a + b, 0) / dataValues.length;
+            const threshold = 3 * stdDev; 
+            return dataValues.map(v => Math.abs(v - avg) > threshold);
+        }
+
+        // =================================================================
+        // FUNCIONES DE CONTROL Y RENDERIZADO
+        // =================================================================
+
+        function generateSmartDashboard(analysis) {
+            destroyCharts();
+            content.classList.remove("hidden");
+            populateControls(analysis);
+            
+            // Después de poblar los controles, ejecutamos la lógica con el análisis filtrado (que inicialmente es el completo)
+            const initialFilteredAnalysis = getFilteredAnalysis(); 
+            createSmartKPIs(initialFilteredAnalysis);
+            createSmartTable(initialFilteredAnalysis.data, initialFilteredAnalysis);
+            updateCharts(initialFilteredAnalysis);
+        }
+
+        function addKPI(container, icon, label, value, trend, format = null, color = null) {
+            const div = document.createElement("div");
+            div.className = "kpi-card";
+            let trendHTML = "";
+            let valueText = format ? formatValue(value, format) : value.toLocaleString();
+
+            if (trend === 'predict') trendHTML = `<div class="trend-predict">🔮 Predicción Próximo Período</div>`;
+            else if (trend === 'error') trendHTML = '<div class="error-metric">⚠️ Métrica de Error</div>';
+
+            let valueStyle = color ? `style="background: ${color}; -webkit-background-clip: text; -webkit-text-fill-color: transparent;"` : '';
+            
+            div.innerHTML = `<div class="kpi-icon">${icon}</div><div class="kpi-label">${label}</div><div class="kpi-value" ${valueStyle}>${valueText}</div>${trendHTML}`;
+            container.appendChild(div);
+        }
+
+        function createSmartKPIs(analysis) {
+            kpisContainer.innerHTML = "";
+            kpisPrediction.innerHTML = "";
+            kpisMetrics.innerHTML = "";
+            
+            const selectedMeasures = getSelectedMeasures(); 
+            
+            let anomalyCount = 0;
+            if (analysis.rowCount > 0) { addKPI(kpisContainer, "📊", "Total Registros", analysis.rowCount, null, 'Integer'); }
+            
+            if (selectedMeasures.length > 0) {
+                // Usamos la primera medida seleccionada para los KPI de Predicción y Anomalías (son modelos para una serie)
+                const mainMeasure = selectedMeasures[0]; 
+                const stats = analysis.statistics[mainMeasure];
+                const format = analysis.interpretationMap[mainMeasure].format;
+                
+                if (stats) {
+                    // KPIs Generales de la primera medida
+                    addKPI(kpisContainer, "💰", `Total ${mainMeasure}`, stats.sum, null, format);
+                    addKPI(kpisContainer, "Ø", `Promedio ${mainMeasure}`, stats.avg, null, format);
+                }
+                
+                if (analysis.dateCols.length > 0) {
+                    const dateCol = document.getElementById('dateColSelect')?.value;
+
+                    const timeSeries = analysis.data
+                        .map(r => ({ date: moment(r[dateCol], moment.ISO_8601, true), value: parseFloat(r[mainMeasure]) }))
+                        .filter(item => item.date.isValid() && !isNaN(item.value))
+                        .sort((a, b) => a.date - b.date);
+
+                    const seasonality = detectSeasonality(timeSeries);
+                    const periodsToForecast = seasonality === 12 ? 3 : 1; 
+                    const forecastResult = holtWintersForecast(timeSeries.map(r => r.value), periodsToForecast, seasonality); 
+                    
+                    if (forecastResult) {
+                        const lastDate = timeSeries[timeSeries.length - 1]?.date;
+                        const nextDate = lastDate ? lastDate.clone().add(1, 'day').format('DD/MM/YYYY') : 'N/A';
+                        const nextValue = forecastResult.forecast[0];
+                        const realValues = timeSeries.slice(1).map(r => r.value); 
+                        const metrics = calculatePredictionMetrics(realValues, forecastResult.inSamplePredictions);
+                        
+                        // KPI de Predicción (Destacado)
+                        addKPI(kpisPrediction, "🔮", `${mainMeasure} para ${nextDate}`, nextValue, 'predict', format, `linear-gradient(135deg, ${COLOR_SKY_BLUE}, ${COLOR_GREEN})`);
+
+                        // KPIs de Métricas de Decisión (Error)
+                        addKPI(kpisMetrics, "⚙️", `Error Cuadrático (RMSE)`, metrics.RMSE, 'error', 'RMSE', `linear-gradient(135deg, #f59e0b, #ec4899)`);
+                        addKPI(kpisMetrics, "🎯", `Error Absoluto % (MAPE)`, metrics.MAPE, 'error', 'MAPE', metrics.MAPE > 0.1 ? `linear-gradient(135deg, #f87171, #ef4444)` : `linear-gradient(135deg, ${COLOR_GREEN}, ${COLOR_LIME})`);
+                    }
+                
+                    if (stats) {
+                        anomalyCount = detectAnomalies(timeSeries.map(r => r.value), stats.stdDev).filter(a => a).length;
+                    }
+                }
+            }
+            
+            // KPI de Anomalías
+            if (selectedMeasures.length > 0 && analysis.statistics[selectedMeasures[0]]) {
+                const anomalyCard = document.createElement("div");
+                anomalyCard.className = "kpi-card";
+                const anomalyBadge = anomalyCount > 0 ? `<div class="anomaly-badge">🚨 ${anomalyCount} Atípicos</div>` : '';
+                anomalyCard.innerHTML = `
+                    <div class="kpi-icon">⚠️</div>
+                    <div class="kpi-label">Puntos Atípicos Detectados</div>
+                    <div class="kpi-value" style="background: ${anomalyCount > 0 ? 'linear-gradient(135deg, #f87171, #ef4444)' : `linear-gradient(135deg, ${COLOR_GREEN}, ${COLOR_LIME})`}; -webkit-background-clip: text; -webkit-text-fill-color: transparent;">${anomalyCount}</div>
+                    ${anomalyBadge}
+                `;
+                kpisContainer.appendChild(anomalyCard);
+            }
+        }
+
+        function updateCharts(analysis) {
+            destroyCharts();
+            chartsContainer.innerHTML = '';
+            
+            const dateCol = document.getElementById('dateColSelect')?.value;
+            const selectedMeasures = getSelectedMeasures(); 
+            const categoryCol = document.getElementById('categorySelect')?.value;
+            
+            if (dateCol && selectedMeasures.length > 0) {
+                // 1. Gráfico de Series de Tiempo (Multi-Medida - Soporta todas las seleccionadas)
+                createMultiMeasureTimeSeriesChart(analysis.data, dateCol, selectedMeasures, analysis.interpretationMap);
+                
+                // Usamos la primera medida seleccionada para los gráficos complejos (Predicción/Anomalías)
+                const mainMeasure = selectedMeasures[0];
+                const mainMeasureFormat = analysis.interpretationMap[mainMeasure]?.format;
+                const stats = analysis.statistics[mainMeasure];
+                const stdDev = stats ? stats.stdDev : null;
+                
+                const timeSeriesForSingle = analysis.data
+                    .map(r => ({ date: moment(r[dateCol], moment.ISO_8601, true), value: parseFloat(r[mainMeasure]) }))
+                    .filter(item => item.date.isValid() && !isNaN(item.value))
+                    .sort((a, b) => a.date - b.date);
+
+                // 2. Gráfico de Predicción (Solo si hay una medida seleccionada)
+                if (selectedMeasures.length === 1) {
+                    createHoltWintersChart(timeSeriesForSingle, dateCol, mainMeasure, mainMeasureFormat);
+                }
+
+                // 3. Gráfico de Contribución Dinámica (Área Apilada - Usa la primera medida)
+                if (categoryCol) { createStackedAreaChart(analysis.data, dateCol, mainMeasure, categoryCol, mainMeasureFormat); }
+                
+                // 4. Gráfico de Anomalías (Usa la primera medida)
+                createAnomalyChart(timeSeriesForSingle, dateCol, mainMeasure, mainMeasureFormat, stdDev);
+            }
+            
+            if (categoryCol && selectedMeasures.length > 0) {
+                const mainMeasure = selectedMeasures[0];
+                const mainMeasureFormat = analysis.interpretationMap[mainMeasure]?.format;
+                
+                // 5. Gráfico de Barras Top N (Usa la primera medida)
+                createBarChart(analysis.data, categoryCol, mainMeasure, mainMeasureFormat);
+                
+                // 6. Gráfico de Distribución (Polar Area - Usa la primera medida)
+                createPolarAreaChart(analysis.data, categoryCol, mainMeasure, mainMeasureFormat);
+            }
+        }
+        
+        // =================================================================
+        // GRÁFICOS AVANZADOS Y ESTÉTICOS
+        // =================================================================
+        
+        function createMultiMeasureTimeSeriesChart(data, dateCol, measures, interpretationMap) {
+            const timeMap = {};
+            const dates = new Set();
+            
+            data.forEach(r => {
+                const date = moment(r[dateCol], moment.ISO_8601, true);
+                if (date.isValid()) {
+                    const dateStr = date.format('YYYY-MM-DD');
+                    dates.add(date);
+                    if (!timeMap[dateStr]) timeMap[dateStr] = {};
+                    
+                    measures.forEach(measure => {
+                        const val = parseFloat(r[measure]);
+                        if (!isNaN(val)) {
+                            timeMap[dateStr][measure] = (timeMap[dateStr][measure] || 0) + val;
+                        }
+                    });
+                }
+            });
+
+            const sortedDates = Array.from(dates).sort((a, b) => a - b);
+
+            const datasets = measures.map((measure, index) => {
+                const color = PRIMARY_COLORS[index % PRIMARY_COLORS.length];
+                
+                return {
+                    label: measure,
+                    data: sortedDates.map(date => {
+                        const dateStr = date.format('YYYY-MM-DD');
+                        return { x: date, y: timeMap[dateStr][measure] || 0 };
+                    }),
+                    borderColor: color,
+                    backgroundColor: 'transparent', 
+                    fill: false, 
+                    tension: 0.2, 
+                    borderWidth: 2, 
+                    pointRadius: 3, 
+                    pointHoverRadius: 5,
+                    yAxisID: `y-${index}` // Asignar un eje Y dinámico
+                };
+            });
+
+            const canvas = createChartCanvas(`📊 Comparación de Medidas en el Tiempo: ${measures.join(' vs ')}`, 'MULTI-SERIE');
+
+            // Ejes dinámicos (uno por cada medida para manejar diferentes magnitudes)
+            const scales = { x: { type: 'time', time: { unit: 'day' }, grid: { display: false } } };
+            measures.forEach((measure, index) => {
+                const format = interpretationMap[measure]?.format;
+                const color = PRIMARY_COLORS[index % PRIMARY_COLORS.length];
+                scales[`y-${index}`] = {
+                    type: 'linear',
+                    position: index % 2 === 0 ? 'left' : 'right', // Alternar izquierda/derecha
+                    grid: { color: 'rgba(169, 214, 255, 0.1)' },
+                    ticks: {
+                        color: color,
+                        callback: (value) => formatValue(value, format)
+                    },
+                    title: {
+                         display: true,
+                         text: measure,
+                         color: color
+                    }
+                };
+            });
+
+            const chart = new Chart(canvas, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    interaction: { intersect: false, mode: 'index' },
+                    plugins: { 
+                        legend: { display: true, labels: { color: COLOR_SKY_BLUE } }, 
+                        tooltip: { 
+                            callbacks: { 
+                                label: (context) => {
+                                    const measureName = context.dataset.label;
+                                    const format = interpretationMap[measureName]?.format;
+                                    return `${measureName}: ${formatValue(context.parsed.y, format)}`;
+                                }
+                            } 
+                        } 
+                    },
+                    scales: scales
+                }
+            });
+            chartInstances.push(chart);
+        }
+
+        function createHoltWintersChart(timeSeries, dateCol, measure, format) {
+            const dataValues = timeSeries.map(r => r.value);
+            const seasonality = detectSeasonality(timeSeries);
+            const periodsToForecast = seasonality * 2; 
+            const forecastResult = holtWintersForecast(dataValues, periodsToForecast, seasonality);
+
+            if (!forecastResult) { return; }
+
+            const realData = timeSeries.map(item => ({ x: item.date, y: item.value }));
+            let forecastPoints = [realData[realData.length - 1]]; 
+            let currentDate = timeSeries[timeSeries.length - 1].date.clone();
+            for (let i = 1; i <= periodsToForecast; i++) {
+                currentDate = currentDate.add(1, 'day'); 
+                forecastPoints.push({ x: currentDate.clone(), y: forecastResult.forecast[i-1] });
+            }
+
+            const canvas = createChartCanvas(`🔮 Predicción Ejecutiva: ${measure}`, 'HOLT-WINTERS');
+            const chart = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        { label: `${measure} (Real)`, data: realData, borderColor: COLOR_GREEN, backgroundColor: createGradient(canvas, `${COLOR_LIME}44`, 'transparent'), fill: true, tension: 0.4, borderWidth: 3, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: COLOR_GREEN, },
+                        { label: `${measure} (Forecast)`, data: forecastPoints, borderColor: COLOR_SKY_BLUE, borderDash: [10, 5], pointBackgroundColor: COLOR_SKY_BLUE, fill: false, tension: 0.4, borderWidth: 3, pointRadius: 4, pointHoverRadius: 6, }
+                    ].filter(ds => ds.data.length > 0)
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' },
+                    plugins: { legend: { display: true, labels: { color: COLOR_SKY_BLUE } }, tooltip: { callbacks: { label: (context) => `${context.dataset.label}: ${formatValue(context.parsed.y, format)}` } } },
+                    scales: { y: { beginAtZero: true, grid: { color: 'rgba(169, 214, 255, 0.1)' }, ticks: { color: COLOR_SKY_BLUE, callback: (value) => formatValue(value, format) } }, x: { type: 'time', time: { unit: 'day' }, grid: { display: false } } }
+                }
+            });
+            chartInstances.push(chart);
+        }
+
+        function createAnomalyChart(timeSeries, dateCol, measure, format, stdDev) {
+            const dataValues = timeSeries.map(r => r.value);
+            const anomalyFlags = detectAnomalies(dataValues, stdDev);
+
+            const anomalyData = timeSeries.map((item, index) => {
+                return anomalyFlags[index] ? { x: item.date, y: item.value } : null;
+            }).filter(item => item !== null);
+
+            const canvas = createChartCanvas(`🚨 Detección de Puntos Atípicos: ${measure}`, 'ANOMALÍAS');
+            const chart = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        { label: `${measure} (Datos)`, data: timeSeries.map(item => ({ x: item.date, y: item.value })), borderColor: COLOR_GREEN, backgroundColor: 'transparent', fill: false, tension: 0.4, borderWidth: 2, pointRadius: 2, pointHoverRadius: 5, },
+                        { label: 'Anomalía', data: anomalyData, backgroundColor: '#f87171', borderColor: '#f87171', pointRadius: 8, pointHoverRadius: 10, showLine: false, }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { display: true, labels: { color: COLOR_SKY_BLUE } }, tooltip: { callbacks: { label: (context) => { const label = context.dataset.label; const value = formatValue(context.parsed.y, format); return label === 'Anomalía' ? `🚨 ANOMALÍA: ${value}` : `${label}: ${value}`; } } } },
+                    scales: { y: { beginAtZero: false, grid: { color: 'rgba(169, 214, 255, 0.1)' }, ticks: { color: COLOR_SKY_BLUE, callback: (value) => formatValue(value, format) } }, x: { type: 'time', time: { unit: 'day' }, grid: { display: false } } }
+                }
+            });
+            chartInstances.push(chart);
+        }
+
+        function createStackedAreaChart(data, dateCol, measure, category, format) {
+            const timeMap = {};
+            const categories = new Set();
+            data.forEach(r => {
+                const date = moment(r[dateCol], moment.ISO_8601, true);
+                const cat = r[category] || 'Otro';
+                const val = parseFloat(r[measure]);
+                if (date.isValid() && !isNaN(val)) {
+                    const dateStr = date.format('YYYY-MM-DD');
+                    if (!timeMap[dateStr]) timeMap[dateStr] = { date: date };
+                    timeMap[dateStr][cat] = (timeMap[dateStr][cat] || 0) + val;
+                    categories.add(cat);
+                }
+            });
+            const sortedDates = Object.values(timeMap).sort((a, b) => a.date - b.date);
+            const categoryList = Array.from(categories);
+            const AREA_COLORS = [COLOR_GREEN + 'aa', COLOR_SKY_BLUE + 'aa', COLOR_LIME + 'aa', '#f59e0baa', '#ec4899aa', '#06b6d4aa', '#84cc16aa'];
+            const datasets = categoryList.map((cat, index) => {
+                return {
+                    label: cat,
+                    data: sortedDates.map(d => ({ x: d.date, y: d[cat] || 0 })),
+                    backgroundColor: AREA_COLORS[index % AREA_COLORS.length],
+                    fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 4,
+                };
+            });
+            const canvas = createChartCanvas(`📈 Contribución: ${category} a ${measure}`, 'CONTRIBUCIÓN');
+            const chart = new Chart(canvas, {
+                type: 'line', data: { datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' },
+                    plugins: { legend: { labels: { color: COLOR_SKY_BLUE } }, tooltip: { callbacks: { label: (context) => `${context.dataset.label}: ${formatValue(context.parsed.y, format)}` } } },
+                    scales: { y: { stacked: true, beginAtZero: true, grid: { color: 'rgba(169, 214, 255, 0.1)' }, ticks: { color: COLOR_SKY_BLUE, callback: (value) => formatValue(value, format) } }, x: { type: 'time', time: { unit: 'day' }, grid: { display: false } } }
+                }
+            });
+            chartInstances.push(chart);
+        }
+
+        function createBarChart(data, category, measure, format) {
+            const groups = {};
+            data.forEach(r => {
+                const cat = r[category] || "Sin categoría";
+                const val = parseFloat(r[measure]);
+                if (!isNaN(val)) groups[cat] = (groups[cat] || 0) + val;
+            });
+            const sorted = Object.entries(groups).sort((a, b) => b[1] - a[1]).slice(0, 10);
+            const labels = sorted.map(([cat]) => cat);
+            const values = sorted.map(([, val]) => val);
+            const colors = values.map((_, i) => PRIMARY_COLORS[i % PRIMARY_COLORS.length]);
+
+            const canvas = createChartCanvas(`📊 Top 10: Concentración de ${measure} por ${category}`, 'TOP 10');
+            const chart = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: measure, data: values, backgroundColor: colors.map(c => createGradient(canvas, c, c + 'aa')),
+                        borderColor: colors, borderWidth: 2, borderRadius: 8, borderSkipped: false,
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, indexAxis: 'y', 
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => `${measure}: ${formatValue(context.parsed.x, format)}` } } },
+                    scales: { x: { beginAtZero: true, grid: { color: 'rgba(169, 214, 255, 0.1)' }, ticks: { color: COLOR_SKY_BLUE, callback: (value) => formatValue(value, format) } }, y: { grid: { display: false } } }
+                }
+            });
+            chartInstances.push(chart);
+        }
+
+        function createPolarAreaChart(data, category, measure, format) {
+            const groups = {};
+            data.forEach(r => {
+                const cat = r[category] || "Sin categoría";
+                const val = parseFloat(r[measure]);
+                if (!isNaN(val)) groups[cat] = (groups[cat] || 0) + val;
+            });
+            const sorted = Object.entries(groups).sort((a, b) => b[1] - a[1]).slice(0, 7);
+            const labels = sorted.map(([cat]) => cat);
+            const values = sorted.map(([, val]) => val);
+            const canvas = createChartCanvas(`✨ Distribución: Impacto de ${category}`, 'DISTRIBUCIÓN');
+            const chart = new Chart(canvas, {
+                type: 'polarArea',
+                data: { labels, datasets: [{ data: values, backgroundColor: PRIMARY_COLORS.slice(0, 7).map(c => c + 'dd'), borderColor: COLOR_DARK_BLUE, borderWidth: 3, }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'right', labels: { color: COLOR_SKY_BLUE } }, tooltip: { callbacks: { label: (context) => { const total = context.dataset.data.reduce((a, b) => a + b, 0); const percent = ((context.parsed / total) * 100).toFixed(1); return `${context.label}: ${formatValue(context.parsed, format)} (${percent}%)`; } } } },
+                    scales: { r: { grid: { color: 'rgba(169, 214, 255, 0.1)' }, pointLabels: { color: COLOR_SKY_BLUE, font: { size: 12 } }, ticks: { display: false } } }
+                }
+            });
+            chartInstances.push(chart);
+        }
+        
+        // =================================================================
+        // FUNCIONES AUXILIARES Y CONTROLES
+        // =================================================================
+
+        function createChartCanvas(title, badge) {
+            const container = document.createElement("div");
+            container.className = "chart-container";
+            container.innerHTML = `<div class="chart-header"><div class="chart-title">${title}</div><div class="chart-badge">${badge}</div></div><div style="height: 350px; position: relative;"><canvas></canvas></div>`;
+            chartsContainer.appendChild(container);
+            return container.querySelector("canvas");
+        }
+
+        function createGradient(canvas, color1, color2) {
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createLinearGradient(0, 0, 0, 350); 
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(1, color2);
+            return gradient;
+        }
+
+        function populateControls(analysis) {
+            controlsContainer.innerHTML = '';
+            
+            // Determinar valores por defecto
+            const dateColDefault = analysis.dateCols[0];
+            const measureColsOptions = analysis.numCols;
+            // Por defecto, selecciona la primera medida
+            const measureColDefault = [analysis.numCols.find(c => analysis.interpretationMap[c].type === 'CURRENCY') || analysis.numCols[0]].filter(c => c);
+            const categoryColDefault = analysis.categoryCols[0];
+
+            // Encontrar fechas min/max para los inputs de rango
+            let minDate = '';
+            let maxDate = '';
+            if (dateColDefault) {
+                const dates = analysis.data
+                    .map(r => moment(r[dateColDefault], moment.ISO_8601, true))
+                    .filter(m => m.isValid())
+                    .sort((a, b) => a - b);
+                
+                if (dates.length > 0) {
+                    minDate = dates[0].format('YYYY-MM-DD');
+                    maxDate = dates[dates.length - 1].format('YYYY-MM-DD');
+                }
+            }
+
+            // 1. Eje Temporal (Columna)
+            const dateColControl = createSelectControl('dateColSelect', 'Columna de Fecha', analysis.dateCols, dateColDefault);
+            // 2. Rango de Fechas (Inputs)
+            const startDateControl = createDateControl('startDateSelect', 'Fecha de Inicio', minDate, minDate, maxDate);
+            const endDateControl = createDateControl('endDateSelect', 'Fecha de Fin', maxDate, minDate, maxDate);
+            // 3. Medidas (Selección Múltiple)
+            const measureControl = createSelectControl('measureSelect', 'Medidas a Analizar (Múltiple)', measureColsOptions, measureColDefault, true); 
+            // 4. Categoría
+            const categoryControl = createSelectControl('categorySelect', 'Columna Categórica (AGRUPACIÓN)', analysis.categoryCols, categoryColDefault);
+
+            if (dateColControl) controlsContainer.appendChild(dateColControl);
+            if (startDateControl) controlsContainer.appendChild(startDateControl);
+            if (endDateControl) controlsContainer.appendChild(endDateControl);
+            if (measureControl) controlsContainer.appendChild(measureControl);
+            if (categoryControl) controlsContainer.appendChild(categoryControl);
+            
+            // Adjuntar event listeners a todos los controles para re-analizar al cambiar
+            [dateColControl, startDateControl, endDateControl, measureControl, categoryControl].forEach(control => {
+                if(control) {
+                    // Seleccionar el elemento correcto (select o input[type="date])
+                    const element = control.querySelector('select') || control.querySelector('input[type="date"]');
+                    element.addEventListener('change', () => {
+                        // Obtener el análisis con los datos filtrados por el nuevo rango/selección
+                        const filteredAnalysis = getFilteredAnalysis();
+                        // Actualizar todos los componentes con los datos filtrados
+                        createSmartKPIs(filteredAnalysis); 
+                        updateCharts(filteredAnalysis);
+                        createSmartTable(filteredAnalysis.data, filteredAnalysis); 
+                    });
+                }
+            });
+        }
+        
+        function createDateControl(id, label, defaultValue, min, max) {
+            if (!min || !max) return null; // No crear si no hay rango de fecha válido
+            const div = document.createElement('div');
+            div.className = 'control-group';
+            div.innerHTML = `
+                <label for="${id}">${label}</label>
+                <input type="date" id="${id}" value="${defaultValue}" min="${min}" max="${max}" />
+            `;
+            return div;
+        }
+
+        function createSelectControl(id, label, options, defaultValue, isMultiple = false) {
+            if (options.length === 0 && !isMultiple) return null; 
+
+            const div = document.createElement('div');
+            div.className = 'control-group';
+            
+            const multipleAttr = isMultiple ? 'multiple size="4"' : '';
+            div.innerHTML = `<label for="${id}">${label}</label><select id="${id}" ${multipleAttr}></select>`;
+            
+            const select = div.querySelector('select');
+            options.forEach(col => {
+                const option = document.createElement('option');
+                option.value = col;
+                option.textContent = col;
+                
+                const isDefaultArray = Array.isArray(defaultValue);
+                if ((isDefaultArray && defaultValue.includes(col)) || (!isDefaultArray && col === defaultValue)) {
+                     option.selected = true;
+                }
+                select.appendChild(option);
+            });
+            return div;
+        }
+
+        function createSmartTable(data, analysis) {
+             // Muestra la hoja activa y el recuento de datos filtrados
+             tableInfo.textContent = `Mostrando ${Math.min(100, data.length)} de ${data.length} registros (Hoja: ${currentSheetName})`; 
+            
+            const cols = analysis.cols;
+            let html = "<thead><tr>" + cols.map(c => `<th>${c}</th>`).join("") + "</tr></thead><tbody>";
+            
+            data.slice(0, 100).forEach(r => {
+                html += "<tr>" + cols.map(c => {
+                    const value = r[c] || "";
+                    const format = analysis.interpretationMap[c].format;
+                    const formattedValue = formatValue(value, format);
+                    return `<td>${formattedValue}</td>`;
+                }).join("") + "</tr>";
+            });
+            
+            html += "</tbody>";
+            tableContainer.innerHTML = html;
+        }
+
+        function destroyCharts() {
+            chartInstances.forEach(c => c.destroy());
+            chartInstances = [];
+        }
+
+        function showError(msg) {
+            errorContainer.innerHTML = `<div class="error-container">❌ ${msg}</div>`;
+            content.classList.add("hidden");
+        }
+        
+        function renderSheetTabs(sheetNames, activeSheet) {
+            // No mostrar tabs si solo hay una hoja y se llama "Datos" (caso CSV)
+            if (sheetNames.length === 1 && sheetNames[0] === "Datos") {
+                 sheetTabsContainer.classList.add("hidden");
+                 return; 
+            }
+            
+            sheetTabsContainer.classList.remove("hidden");
+            sheetTabsContainer.innerHTML = '';
+
+            sheetNames.forEach(name => {
+                const button = document.createElement('button');
+                button.className = 'tab-button';
+                if (name === activeSheet) {
+                    button.classList.add('active');
+                }
+                button.textContent = name;
+                button.dataset.sheetName = name;
+                
+                button.addEventListener('click', (e) => switchSheet(e.target.dataset.sheetName));
+                
+                sheetTabsContainer.appendChild(button);
+            });
+        }
+
+        function switchSheet(sheetName) {
+            if (sheetName === currentSheetName) return; 
+
+            // 1. Actualizar estado de los botones (visual)
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.sheetName === sheetName) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // 2. Mostrar carga y actualizar dashboard
+            currentSheetName = sheetName;
+            loading.classList.remove("hidden");
+            content.classList.add("hidden"); 
+
+            // Pequeño retraso para que el navegador actualice la UI
+            setTimeout(() => {
+                try {
+                    const data = allSheetsData[sheetName];
+                    currentAnalysis = analyzeData(data);
+                    generateSmartDashboard(currentAnalysis); // Re-generar dashboard
+                } catch (err) {
+                    showError("Error al cambiar de hoja: " + err.message);
+                } finally {
+                    loading.classList.add("hidden");
+                    content.classList.remove("hidden"); 
+                }
+            }, 50); 
+        }
+
+    </script>
+</body>
+</html>
