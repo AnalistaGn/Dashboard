@@ -8,6 +8,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.1/dist/chartjs-adapter-moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         /* Definición de variables de color para fácil mantenimiento */
         :root {
@@ -69,6 +71,32 @@
             color: var(--color-text-muted);
             font-size: 1.2em;
             font-weight: 400;
+        }
+        
+        /* NUEVO: Estilo para el botón de descarga */
+        .download-btn {
+            background: var(--color-sky-blue);
+            color: var(--color-dark-blue);
+            padding: 10px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 1em;
+            transition: all 0.3s;
+            margin-top: 20px;
+            display: inline-block;
+            box-shadow: 0 4px 15px rgba(169, 214, 255, 0.4);
+        }
+        .download-btn:hover {
+            background: var(--color-green);
+            box-shadow: 0 4px 15px rgba(119, 194, 92, 0.6);
+            transform: translateY(-2px);
+        }
+
+        /* NUEVO: Clase para ocultar temporalmente elementos durante la generación del PDF */
+        .hidden-for-pdf { 
+            display: none !important; 
         }
 
         /* Carga de archivo */
@@ -349,6 +377,7 @@
         <header>
             <h1>🔮 Dashboard Ejecutivo GN </h1>
             <p class="subtitle">Análisis avanzado, filtrado por rango de fecha y comparación de múltiples series.</p>
+            <button id="downloadPdfBtn" class="download-btn hidden" onclick="downloadPDF()">⬇️ Descargar Informe PDF</button>
         </header>
 
         <div class="upload-section">
@@ -405,6 +434,8 @@
         const tableContainer = document.getElementById("tableContainer");
         const tableInfo = document.getElementById("tableInfo");
         const sheetTabsContainer = document.getElementById("sheetTabsContainer"); 
+        // NUEVO: Botón de descarga PDF
+        const downloadPdfBtn = document.getElementById("downloadPdfBtn"); 
 
         let chartInstances = [];
         let currentAnalysis = null; 
@@ -502,6 +533,7 @@
             errorContainer.innerHTML = "";
             loading.classList.remove("hidden");
             content.classList.add("hidden");
+            downloadPdfBtn.classList.add("hidden"); // Ocultar si se carga un nuevo archivo
 
             try {
                 // Leer todas las hojas: {sheetName: [data]}
@@ -790,6 +822,9 @@
             createSmartKPIs(initialFilteredAnalysis);
             createSmartTable(initialFilteredAnalysis.data, initialFilteredAnalysis);
             updateCharts(initialFilteredAnalysis);
+            
+            // NUEVO: Mostrar botón de descarga al cargar datos
+            downloadPdfBtn.classList.remove("hidden"); 
         }
 
         function addKPI(container, icon, label, value, trend, format = null, color = null) {
@@ -973,7 +1008,7 @@
             const canvas = createChartCanvas(`📊 Comparación de Medidas en el Tiempo: ${measures.join(' vs ')}`, 'MULTI-SERIE');
 
             // Ejes dinámicos (uno por cada medida para manejar diferentes magnitudes)
-            const scales = { x: { type: 'time', time: { unit: 'day' }, grid: { display: false } } };
+            const scales = { x: { type: 'time', time: { unit: 'day' }, grid: { color: 'rgba(169, 214, 255, 0.1)' } } };
             measures.forEach((measure, index) => {
                 const format = interpretationMap[measure]?.format;
                 const color = PRIMARY_COLORS[index % PRIMARY_COLORS.length];
@@ -1046,7 +1081,7 @@
                 options: {
                     responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' },
                     plugins: { legend: { display: true, labels: { color: COLOR_SKY_BLUE } }, tooltip: { callbacks: { label: (context) => `${context.dataset.label}: ${formatValue(context.parsed.y, format)}` } } },
-                    scales: { y: { beginAtZero: true, grid: { color: 'rgba(169, 214, 255, 0.1)' }, ticks: { color: COLOR_SKY_BLUE, callback: (value) => formatValue(value, format) } }, x: { type: 'time', time: { unit: 'day' }, grid: { display: false } } }
+                    scales: { y: { beginAtZero: true, grid: { color: 'rgba(169, 214, 255, 0.1)' }, ticks: { color: COLOR_SKY_BLUE, callback: (value) => formatValue(value, format) } }, x: { type: 'time', time: { unit: 'day' }, grid: { color: 'rgba(169, 214, 255, 0.1)' } } }
                 }
             });
             chartInstances.push(chart);
@@ -1072,7 +1107,7 @@
                 options: {
                     responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
                     plugins: { legend: { display: true, labels: { color: COLOR_SKY_BLUE } }, tooltip: { callbacks: { label: (context) => { const label = context.dataset.label; const value = formatValue(context.parsed.y, format); return label === 'Anomalía' ? `🚨 ANOMALÍA: ${value}` : `${label}: ${value}`; } } } },
-                    scales: { y: { beginAtZero: false, grid: { color: 'rgba(169, 214, 255, 0.1)' }, ticks: { color: COLOR_SKY_BLUE, callback: (value) => formatValue(value, format) } }, x: { type: 'time', time: { unit: 'day' }, grid: { display: false } } }
+                    scales: { y: { beginAtZero: false, grid: { color: 'rgba(169, 214, 255, 0.1)' }, ticks: { color: COLOR_SKY_BLUE, callback: (value) => formatValue(value, format) } }, x: { type: 'time', time: { unit: 'day' }, grid: { color: 'rgba(169, 214, 255, 0.1)' } } }
                 }
             });
             chartInstances.push(chart);
@@ -1109,7 +1144,7 @@
                 options: {
                     responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' },
                     plugins: { legend: { labels: { color: COLOR_SKY_BLUE } }, tooltip: { callbacks: { label: (context) => `${context.dataset.label}: ${formatValue(context.parsed.y, format)}` } } },
-                    scales: { y: { stacked: true, beginAtZero: true, grid: { color: 'rgba(169, 214, 255, 0.1)' }, ticks: { color: COLOR_SKY_BLUE, callback: (value) => formatValue(value, format) } }, x: { type: 'time', time: { unit: 'day' }, grid: { display: false } } }
+                    scales: { y: { stacked: true, beginAtZero: true, grid: { color: 'rgba(169, 214, 255, 0.1)' }, ticks: { color: COLOR_SKY_BLUE, callback: (value) => formatValue(value, format) } }, x: { type: 'time', time: { unit: 'day' }, grid: { color: 'rgba(169, 214, 255, 0.1)' } } }
                 }
             });
             chartInstances.push(chart);
@@ -1187,6 +1222,86 @@
             gradient.addColorStop(0, color1);
             gradient.addColorStop(1, color2);
             return gradient;
+        }
+        
+        // NUEVA FUNCIÓN: Lógica de descarga del PDF
+        async function downloadPDF() {
+            const originalLoadingText = loading.innerHTML;
+            loading.innerHTML = "📄 Generando informe PDF, por favor espere... (Esto puede tardar)";
+            loading.classList.remove("hidden");
+
+            // Elementos a ocultar temporalmente
+            const controls = document.getElementById('controlsContainer');
+            const upload = document.querySelector('.upload-section');
+            const btn = document.getElementById('downloadPdfBtn');
+            const sheetTabs = document.getElementById('sheetTabsContainer');
+            
+            // Ocultar elementos interactivos/no deseados
+            controls.classList.add('hidden-for-pdf');
+            upload.classList.add('hidden-for-pdf');
+            btn.classList.add('hidden-for-pdf');
+            // Ocultar pestañas solo si hay más de una hoja o no es la hoja por defecto "Datos"
+            if (sheetTabs.classList.contains('tabs-container')) { 
+                 sheetTabs.classList.add('hidden-for-pdf');
+            }
+
+
+            try {
+                // Capturar el cuerpo completo para incluir fondo y estilo
+                const input = document.body;
+                
+                // Usar html2canvas para renderizar el DOM
+                const canvas = await html2canvas(input, { 
+                    scale: 2, // Mejorar la calidad de la imagen
+                    logging: false,
+                    useCORS: true,
+                    windowWidth: input.scrollWidth, // Capturar el ancho completo
+                    scrollY: -window.scrollY // Empezar la captura desde el inicio de la página
+                });
+
+                // Acceder a jsPDF (requiere la versión UMD)
+                const { jsPDF } = window.jspdf;
+                const imgData = canvas.toDataURL('image/jpeg', 1.0); // Calidad alta
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const imgProps = pdf.getImageProperties(imgData);
+                
+                // Dimensiones del PDF (A4 en mm: 210 x 297)
+                const pdfWidth = 210; 
+                const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width; 
+                const pageHeight = 297; 
+
+                let heightLeft = pdfHeight;
+                let position = 0;
+
+                // Lógica para páginas múltiples (si el contenido es más largo que una A4)
+                while (heightLeft > 0) {
+                    pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+                    heightLeft -= pageHeight;
+                    position -= pageHeight;
+                    if (heightLeft > 0) {
+                        pdf.addPage();
+                    }
+                }
+                
+                // Descargar el archivo
+                pdf.save("Dashboard_Ejecutivo_GN_" + moment().format('YYYYMMDD') + ".pdf");
+                
+            } catch (error) {
+                console.error("Error al generar el PDF:", error);
+                alert("No se pudo generar el PDF. Revise la consola para detalles.");
+            } finally {
+                // Restaurar visibilidad y estado de carga
+                controls.classList.remove('hidden-for-pdf');
+                upload.classList.remove('hidden-for-pdf');
+                btn.classList.remove('hidden-for-pdf');
+                // Restaurar pestañas
+                if (sheetTabs.classList.contains('tabs-container')) { 
+                     sheetTabs.classList.remove('hidden-for-pdf');
+                }
+
+                loading.classList.add("hidden");
+                loading.innerHTML = originalLoadingText;
+            }
         }
 
         function populateControls(analysis) {
@@ -1310,6 +1425,7 @@
         function showError(msg) {
             errorContainer.innerHTML = `<div class="upload-section" style="border: 2px dashed #f87171; color: #f87171;">❌ ${msg}</div>`;
             content.classList.add("hidden");
+            downloadPdfBtn.classList.add("hidden"); // Ocultar si hay error
         }
         
         function renderSheetTabs(sheetNames, activeSheet) {
@@ -1352,6 +1468,7 @@
             currentSheetName = sheetName;
             loading.classList.remove("hidden");
             content.classList.add("hidden"); 
+            downloadPdfBtn.classList.add("hidden"); // Ocultar temporalmente
 
             // Pequeño retraso para que el navegador actualice la UI
             setTimeout(() => {
@@ -1371,4 +1488,3 @@
     </script>
 </body>
 </html>
-
