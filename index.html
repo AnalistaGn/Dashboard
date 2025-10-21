@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Ejecutivo v5.6: Multi-Medida y Rango de Fecha</title>
+    <title>Dashboard Ejecutivo Gn</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
@@ -347,7 +347,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>🔮 Dashboard Ejecutivo v5.6: Multi-Medida y Rango Dinámico</h1>
+            <h1>🔮 Dashboard Ejecutivo v5.7: Multi-Medida y Rango Dinámico</h1>
             <p class="subtitle">Análisis avanzado, filtrado por rango de fecha y comparación de múltiples series.</p>
         </header>
 
@@ -428,23 +428,31 @@
         // LÓGICA DE ARCHIVOS, INTERPRETACIÓN Y FORMATO
         // =================================================================
 
+        /**
+         * Lee el archivo, detectando si es Excel o CSV.
+         * Para CSV, utiliza readAsText para asegurar la codificación correcta.
+         * Para Excel, utiliza readAsArrayBuffer.
+         */
         function readFileAsync(file) {
             return new Promise((resolve, reject) => {
+                const isCSV = file.name.toLowerCase().endsWith(".csv");
                 const reader = new FileReader();
+
                 reader.onload = (e) => {
                     try {
                         const data = e.target.result;
                         let workbook;
                         
-                        if (file.name.endsWith(".csv")) {
-                            const text = new TextDecoder("utf-8").decode(data);
-                            // Para CSV, tratamos el archivo entero como una sola hoja llamada "Datos"
+                        if (isCSV) {
+                            // Si es CSV, data es el texto plano (leído con readAsText)
+                            // XLSX.utils.csv_to_sheet convierte el texto en una hoja de cálculo.
                             workbook = {
                                 SheetNames: ["Datos"],
-                                Sheets: { "Datos": XLSX.utils.csv_to_sheet(text) }
+                                // El parámetro "Datos" es el contenido del archivo CSV como string
+                                Sheets: { "Datos": XLSX.utils.csv_to_sheet(data) } 
                             };
                         } else {
-                            // Leer el archivo Excel, incluyendo todas las hojas
+                            // Si es Excel, data es el ArrayBuffer (leído con readAsArrayBuffer)
                             workbook = XLSX.read(data, { type: "array", cellDates: true, dateNF: "yyyy-mm-dd", raw: false });
                         }
                         
@@ -469,11 +477,24 @@
                         
                         resolve(sheetsData);
                     } catch (err) {
-                        reject(err);
+                        // En caso de error, agregar un mensaje útil para CSV si es relevante
+                        const errorMsg = isCSV && err.message.includes('Delimiter') 
+                            ? `Error al procesar CSV. Esto puede deberse a un delimitador (separador) no reconocido (ej. usa ';' en lugar de ','). Error: ${err.message}` 
+                            : `Error al procesar el archivo: ${err.message}`;
+                        reject(new Error(errorMsg));
                     }
                 };
+                
                 reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
-                reader.readAsArrayBuffer(file);
+                
+                // === CAMBIO CLAVE: LECTURA CONDICIONAL ===
+                if (isCSV) {
+                     // Leer como texto para manejar la codificación UTF-8
+                     reader.readAsText(file, 'UTF-8'); 
+                } else {
+                     // Leer como ArrayBuffer para el manejo binario de Excel
+                     reader.readAsArrayBuffer(file); 
+                }
             });
         }
         
@@ -806,7 +827,7 @@
                 
                 if (stats) {
                     // KPIs Generales de la primera medida
-                    addKPI(kpisContainer, "📊", `Total ${mainMeasure}`, stats.sum, null, format);
+                    addKPI(kpisContainer, "💰", `Total ${mainMeasure}`, stats.sum, null, format);
                     addKPI(kpisContainer, "Ø", `Promedio ${mainMeasure}`, stats.avg, null, format);
                 }
                 
@@ -1289,7 +1310,7 @@
         }
 
         function showError(msg) {
-            errorContainer.innerHTML = `<div class="error-container">❌ ${msg}</div>`;
+            errorContainer.innerHTML = `<div class="upload-section" style="border: 2px dashed #f87171; color: #f87171;">❌ ${msg}</div>`;
             content.classList.add("hidden");
         }
         
@@ -1351,5 +1372,4 @@
 
     </script>
 </body>
-
 </html>
